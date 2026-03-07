@@ -14,6 +14,9 @@ export default function History() {
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [reportToDelete, setReportToDelete] = useState<number | null>(null);
+
   useEffect(() => {
     fetchReports();
   }, [searchQuery]);
@@ -34,16 +37,31 @@ export default function History() {
     }
   };
 
-  const handleDelete = async (id: number, e: React.MouseEvent) => {
+  const openDeleteModal = (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("确定要删除这份报告吗？")) return;
+    setReportToDelete(id);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!reportToDelete) return;
 
     try {
-      await fetch(`/api/reports/${id}`, { method: 'DELETE' });
-      setReports(prev => prev.filter(r => r.id !== id));
-      if (selectedReport?.id === id) setSelectedReport(null);
+      const res = await fetch(`/api/reports/${reportToDelete}`, { method: 'DELETE' });
+      
+      if (res.ok) {
+        setReports(prev => prev.filter(r => r.id !== reportToDelete));
+        if (selectedReport?.id === reportToDelete) setSelectedReport(null);
+      } else {
+        console.error("Failed to delete report, status:", res.status);
+        alert("删除失败，请重试");
+      }
     } catch (error) {
       console.error("Failed to delete report", error);
+      alert("删除出错，请检查网络");
+    } finally {
+      setDeleteModalOpen(false);
+      setReportToDelete(null);
     }
   };
 
@@ -51,8 +69,8 @@ export default function History() {
     e?.stopPropagation();
     
     try {
-      const blob = await exportToWord(report.content, `${report.companyName}_深度尽调报告.docx`);
-      saveAs(blob, `${report.companyName}_深度尽调报告.docx`);
+      const blob = await exportToWord(report.content, `${report.companyName}深度尽调报告.docx`);
+      saveAs(blob, `${report.companyName}深度尽调报告.docx`);
     } catch (error) {
       console.error("Export failed:", error);
       alert("导出失败，请重试");
@@ -112,7 +130,7 @@ export default function History() {
                       <Download className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={(e) => handleDelete(report.id, e)}
+                      onClick={(e) => openDeleteModal(report.id, e)}
                       className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white rounded-md transition-all"
                       title="删除"
                     >
@@ -127,12 +145,12 @@ export default function History() {
       </div>
 
       {/* Detail Column */}
-      <div className="flex-1 bg-slate-50 overflow-y-auto p-8">
+      <div className="flex-1 bg-slate-100 overflow-y-auto p-8 flex justify-center">
         {selectedReport ? (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 min-h-[800px] p-8">
-            <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-100">
+          <div className="w-full max-w-[21cm]">
+            <div className="flex justify-between items-center mb-6">
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">{selectedReport.companyName}</h1>
+                <h1 className="text-xl font-bold text-slate-900">{selectedReport.companyName}</h1>
                 <p className="text-slate-500 text-sm mt-1">生成时间：{new Date(selectedReport.createdAt).toLocaleString()}</p>
               </div>
               <button
@@ -144,21 +162,43 @@ export default function History() {
               </button>
             </div>
             
-            <article className="prose prose-slate max-w-none 
-                prose-headings:text-slate-900 prose-headings:font-bold 
-                prose-h1:text-2xl prose-h1:border-b prose-h1:pb-2 prose-h1:mb-6
-                prose-h2:text-xl prose-h2:text-indigo-700 prose-h2:mt-8 prose-h2:mb-4
-                prose-h3:text-lg prose-h3:text-slate-800
-                prose-p:text-slate-600 prose-p:leading-relaxed
-                prose-table:border-collapse prose-table:w-full prose-table:my-6 prose-table:shadow-sm
-                prose-th:bg-slate-100 prose-th:p-3 prose-th:text-left prose-th:text-slate-700 prose-th:border prose-th:border-slate-200
-                prose-td:p-3 prose-td:border prose-td:border-slate-200 prose-td:text-slate-600
-                prose-li:text-slate-600
-                prose-strong:text-slate-800 prose-strong:font-semibold">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <div className="bg-white shadow-2xl p-[2.54cm] min-h-[29.7cm] w-[21cm]" style={{ fontFamily: '"Microsoft YaHei", sans-serif' }}>
+              <ReactMarkdown 
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  h1: ({node, ...props}) => <h1 className="text-[22pt] font-bold text-[#2E4053] mt-[24pt] mb-[12pt] border-b-2 border-[#EAECEE] pb-[4pt]" {...props} />,
+                  h2: ({node, ...props}) => <h2 className="text-[18pt] font-bold text-[#2874A6] mt-[20pt] mb-[10pt] border-l-4 border-[#2874A6] pl-3" {...props} />,
+                  h3: ({node, ...props}) => <h3 className="text-[15pt] font-bold text-[#1F618D] mt-[16pt] mb-[8pt]" {...props} />,
+                  h4: ({node, ...props}) => <h4 className="text-[13pt] font-bold text-[#2E4053] mt-[14pt] mb-[6pt]" {...props} />,
+                  p: ({node, ...props}) => <p className="text-[12pt] text-[#333333] leading-[1.6] mb-[10pt] text-justify" {...props} />,
+                  ul: ({node, ...props}) => <ul className="list-disc pl-[2em] mb-[10pt]" {...props} />,
+                  ol: ({node, ...props}) => <ol className="list-decimal pl-[2em] mb-[10pt]" {...props} />,
+                  li: ({node, ...props}) => <li className="text-[12pt] text-[#333333] leading-[1.6] mb-[4pt]" {...props} />,
+                  strong: ({node, ...props}) => <strong className="font-bold text-[#000000]" {...props} />,
+                  blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-[#BDC3C7] pl-4 py-2 my-4 bg-slate-50 text-slate-600 italic" {...props} />,
+                  table: ({node, ...props}) => (
+                    <table className="w-full border-collapse my-[12pt] border-[2px] border-[#2E4053]" {...props} />
+                  ),
+                  thead: ({node, ...props}) => (
+                    <thead className="bg-[#F2F4F4]" {...props} />
+                  ),
+                  tbody: ({node, ...props}) => (
+                    <tbody {...props} />
+                  ),
+                  tr: ({node, ...props}) => (
+                    <tr {...props} />
+                  ),
+                  th: ({node, ...props}) => (
+                    <th className="border border-[#BDC3C7] p-[6pt] text-left text-[12pt] font-bold text-[#333333]" {...props} />
+                  ),
+                  td: ({node, ...props}) => (
+                    <td className="border border-[#BDC3C7] p-[6pt] text-[12pt] text-[#333333] align-middle" {...props} />
+                  ),
+                }}
+              >
                 {selectedReport.content}
               </ReactMarkdown>
-            </article>
+            </div>
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-slate-400">
@@ -167,6 +207,40 @@ export default function History() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-bold text-slate-900 mb-2">确认删除</h3>
+              <p className="text-slate-600 mb-6">
+                确定要删除这份报告吗？此操作无法撤销。
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setDeleteModalOpen(false)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors font-medium"
+                >
+                  确认删除
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

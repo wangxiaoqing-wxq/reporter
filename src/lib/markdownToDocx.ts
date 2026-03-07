@@ -43,14 +43,58 @@ export async function exportToWord(content: string, filename: string) {
           id: "Normal",
           name: "Normal",
           run: {
-            font: "Calibri",
+            font: "Microsoft YaHei", // Better for Chinese
             size: 24, // 12pt
+            color: "333333",
           },
           paragraph: {
             spacing: {
-              line: 276, // 1.15 spacing
+              line: 360, // 1.5 spacing
               after: 200,
             },
+            alignment: AlignmentType.JUSTIFIED,
+          },
+        },
+        {
+          id: "Heading1",
+          name: "Heading 1",
+          run: {
+            font: "Microsoft YaHei",
+            size: 36, // 18pt
+            bold: true,
+            color: "2E4053", // Dark Blue
+          },
+          paragraph: {
+            spacing: { before: 480, after: 240 },
+            border: {
+              bottom: { color: "EAECEE", space: 1, value: "single", size: 6 },
+            },
+          },
+        },
+        {
+          id: "Heading2",
+          name: "Heading 2",
+          run: {
+            font: "Microsoft YaHei",
+            size: 32, // 16pt
+            bold: true,
+            color: "2874A6", // Medium Blue
+          },
+          paragraph: {
+            spacing: { before: 400, after: 200 },
+          },
+        },
+        {
+          id: "Heading3",
+          name: "Heading 3",
+          run: {
+            font: "Microsoft YaHei",
+            size: 28, // 14pt
+            bold: true,
+            color: "1F618D",
+          },
+          paragraph: {
+            spacing: { before: 320, after: 160 },
           },
         },
       ],
@@ -144,9 +188,55 @@ function processList(node: AstNode, docChildren: (Paragraph | Table)[], depth: n
   }
 }
 
+// Helper to calculate text length from AST nodes
+function getTextLength(nodes: AstNode[]): number {
+  let length = 0;
+  for (const node of nodes) {
+    if (node.type === 'text') {
+      length += (node.value || '').length;
+    } else if (node.children) {
+      length += getTextLength(node.children);
+    }
+  }
+  return length;
+}
+
 function createTable(node: AstNode): Table {
   const rows: TableRow[] = [];
   
+  // 1. Calculate column widths based on content
+  const colMaxLengths: number[] = [];
+  
+  if (node.children) {
+    node.children.forEach((rowNode) => {
+      if (rowNode.type === 'tableRow' && rowNode.children) {
+        rowNode.children.forEach((cellNode, colIndex) => {
+          if (cellNode.type === 'tableCell') {
+            const len = getTextLength(cellNode.children || []);
+            colMaxLengths[colIndex] = Math.max(colMaxLengths[colIndex] || 0, len);
+          }
+        });
+      }
+    });
+  }
+
+  // 2. Calculate percentages
+  // Min width per column (chars) to prevent too narrow columns
+  const MIN_CHARS = 5; 
+  // Max chars to cap the weight of very long columns
+  const MAX_CHARS = 100;
+
+  const weightedLengths = colMaxLengths.map(len => Math.min(Math.max(len, MIN_CHARS), MAX_CHARS));
+  const totalWeight = weightedLengths.reduce((sum, len) => sum + len, 0);
+  
+  const colWidths = weightedLengths.map(len => Math.round((len / totalWeight) * 100));
+
+  // Ensure total is 100% (distribute remainder)
+  const currentTotal = colWidths.reduce((sum, w) => sum + w, 0);
+  if (currentTotal !== 100 && colWidths.length > 0) {
+    colWidths[colWidths.length - 1] += (100 - currentTotal);
+  }
+
   if (node.children) {
     node.children.forEach((rowNode, rowIndex) => {
       if (rowNode.type === 'tableRow') {
@@ -154,28 +244,38 @@ function createTable(node: AstNode): Table {
         const isHeader = rowIndex === 0;
 
         if (rowNode.children) {
-          rowNode.children.forEach((cellNode) => {
+          rowNode.children.forEach((cellNode, colIndex) => {
             if (cellNode.type === 'tableCell') {
                const textRuns = extractTextRuns(cellNode.children || []);
                
+               // Use calculated width
+               const widthPercent = colWidths[colIndex] || (100 / colMaxLengths.length);
+
                cells.push(new TableCell({
                  children: [new Paragraph({ 
                    children: textRuns,
-                   alignment: AlignmentType.LEFT
+                   alignment: AlignmentType.LEFT,
+                   style: "Normal" // Ensure table text uses Normal style
                  })],
                  width: {
-                   size: 100,
+                   size: widthPercent,
                    type: WidthType.PERCENTAGE,
                  },
                  shading: isHeader ? {
-                   fill: "E6E6E6", // Light gray for header
+                   fill: "F2F4F4", // Light gray/blueish for header
                  } : undefined,
                  verticalAlign: AlignmentType.CENTER,
                  margins: {
-                   top: 100,
-                   bottom: 100,
-                   left: 100,
-                   right: 100,
+                   top: 120,
+                   bottom: 120,
+                   left: 120,
+                   right: 120,
+                 },
+                 borders: {
+                   top: { style: BorderStyle.SINGLE, size: 4, color: "BDC3C7" },
+                   bottom: { style: BorderStyle.SINGLE, size: 4, color: "BDC3C7" },
+                   left: { style: BorderStyle.SINGLE, size: 4, color: "BDC3C7" },
+                   right: { style: BorderStyle.SINGLE, size: 4, color: "BDC3C7" },
                  }
                }));
             }
@@ -196,13 +296,13 @@ function createTable(node: AstNode): Table {
       size: 100,
       type: WidthType.PERCENTAGE,
     },
-    borders: {
-      top: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-      bottom: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-      left: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-      right: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-      insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-      insideVertical: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
+    borders: { // Outer borders
+      top: { style: BorderStyle.SINGLE, size: 8, color: "2E4053" },
+      bottom: { style: BorderStyle.SINGLE, size: 8, color: "2E4053" },
+      left: { style: BorderStyle.SINGLE, size: 8, color: "2E4053" },
+      right: { style: BorderStyle.SINGLE, size: 8, color: "2E4053" },
+      insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: "BDC3C7" },
+      insideVertical: { style: BorderStyle.SINGLE, size: 4, color: "BDC3C7" },
     },
   });
 }

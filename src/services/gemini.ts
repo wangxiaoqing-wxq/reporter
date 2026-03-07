@@ -12,6 +12,8 @@ export interface GenerateOptions {
 
 export async function generateReportStream(options: GenerateOptions): Promise<string> {
   const { companyName, website, description, files, onProgress } = options;
+  const date = new Date();
+  const formattedDate = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
 
   const prompt = `
     你是一位专业的投资分析师和尽职调查专家。
@@ -26,40 +28,43 @@ export async function generateReportStream(options: GenerateOptions): Promise<st
     **报告结构要求**:
     报告必须严格遵循以下结构，并包含所有章节：
 
-    # ${companyName} - 深度尽调报告
+    # ${companyName} 深度尽调报告
 
-    ## 释义
+    # 释义
     *提供一般释义（表格）和专业术语释义（15-20 个，表格）。*
 
-    ## 摘要
+    # 摘要
     *提取各章节结论性内容。*
 
-    ## 目录
+    # 目录
     *列出章节目录。*
 
-    ## 一、企业信息：信息收集
+    # 一、企业信息：信息收集
     *基本信息、历史沿革、股东情况等。*
 
-    ## 二、行业分析：行业概述
+    # 二、行业分析：行业概述
     *   **产业链概述**：分析上游（重点分析成本）、下游（影响企业未来发展，着重分析增长驱动因素，判断其增速）、发展趋势。
     *   **行业政策**：相关法规和政策。
 
-    ## 三、市场规模与增速
+    # 三、市场规模与增速
     *当前规模、历史数据及未来预测。*
 
-    ## 四、风险预警
+    # 四、风险预警
     *   市场风险
     *   政策风险
     *   技术风险
     *   财务风险
     *   竞争风险
 
-    ## 五、AI 总结结论
+    # 五、AI 总结结论
     *   **公司关注重点方向**：关键发展方向。
     *   **行业“值得继续深入”的结论与理由**：（是/否/有条件），并给出详细理由。
 
-    ## 附录：信息信源
+    # 附录：信息信源
     *按 A/B/C 级可信度分级列出信源。*
+
+    # 报告生成日期
+    *${formattedDate}*
 
     **分析要求**:
     1.  **深度研究**：利用你的知识库理解产业链、驱动因素和趋势。
