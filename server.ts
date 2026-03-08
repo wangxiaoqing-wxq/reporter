@@ -1,6 +1,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import { getReports, createReport, deleteReport, searchReports, getReportById } from "./src/db";
+import { generateReportStream } from "./src/services/gemini";
 
 async function startServer() {
   const app = express();
@@ -9,6 +10,24 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' })); // Increase limit for large payloads if needed
 
   // API Routes
+  app.post("/api/generate", async (req, res) => {
+    try {
+      const { companyName, website, description, files } = req.body;
+      
+      const reportContent = await generateReportStream({
+        companyName,
+        website,
+        description,
+        files
+      });
+      
+      res.json({ content: reportContent });
+    } catch (error) {
+      console.error("Generation error:", error);
+      res.status(500).json({ error: "Failed to generate report" });
+    }
+  });
+
   app.get("/api/reports", (req, res) => {
     try {
       const { search } = req.query;

@@ -4,7 +4,6 @@ import { Upload, File, X, Loader2, CheckCircle, AlertCircle, Download, FileText 
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { generateReportStream } from '../services/gemini';
 import { saveAs } from 'file-saver';
 import { cn } from '../lib/utils';
 import { exportToWord } from '../lib/markdownToDocx';
@@ -75,13 +74,25 @@ export default function Generate() {
 
       const processedFiles = await Promise.all(filePromises);
 
-      const result = await generateReportStream({
-        companyName: formData.companyName,
-        website: formData.website,
-        description: formData.description,
-        files: processedFiles,
-        // onProgress removed to prevent streaming display
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyName: formData.companyName,
+          website: formData.website,
+          description: formData.description,
+          files: processedFiles,
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate report');
+      }
+
+      const data = await response.json();
+      const result = data.content;
 
       setProgress(result); // Set the full content at once
 
